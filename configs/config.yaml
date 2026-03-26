@@ -1,0 +1,15 @@
+seed: 42
+data_root: data
+image_size: 224
+batch_size: 16
+num_workers: 4
+
+phase1_epochs: 3
+phase2_epochs: 2
+phase1_lr: 0.0003
+phase2_lr: 0.00005
+vit_unfreeze_layers: 2
+weight_decay: 0.0001
+
+checkpoint_dir: checkpoints
+tta_runs: 5

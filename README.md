@@ -1,105 +1,72 @@
-# AI Image Detector (MVP)
+# Production Multi-Signal Deepfake Detector (PyTorch)
 
-Production-leaning prototype to classify images as **REAL** vs **AI_GENERATED**.
+This project implements a **modular forensic detector** for AI-generated images using multiple independent signals:
+- SRM artifact branch
+- FFT frequency branch
+- DWT multi-scale branch
+- ViT semantic branch
+- Physical consistency features
 
-## Folder Structure
-
-```text
-ai-image-detector/
-├── api/
-│   └── main.py
-├── data/
-│   ├── dataset.py
-│   └── transforms.py
-├── features/
-│   └── fft.py
-├── models/
-│   └── efficientnet.py
-├── training/
-│   ├── eval.py
-│   └── train.py
-├── utils/
-│   ├── config.py
-│   └── metrics.py
-├── requirements.txt
-└── README.md
-```
-
-## Dataset Layout
+## Project Structure
 
 ```text
-dataset/
-├── real/
-└── ai/
+project/
+  data/
+  models/
+  datasets/
+  utils/
+  engine/
+  configs/
+  train.py
+  eval.py
 ```
 
-Target size for MVP: around **10,000 images total**, balanced (5k real / 5k AI).
+## Strict Dataset Layout
 
-## Setup
+The code expects this exact structure (auto-created at startup):
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+```text
+data/
+  train/
+    real/
+      coco/
+    fake/
+      progan/
+      diffusion/
+  val/
+    real/
+      coco/
+    fake/
+      progan/
+      diffusion/
+  test/
+    real/
+      coco/
+    fake/
+      unseen_gan/
+      unseen_diffusion/
 ```
+
+> Datasets are **manually downloaded by user** and placed in the folders above.
 
 ## Train
 
 ```bash
-python -m training.train --dataset-root dataset --epochs 12 --batch-size 32
+python train.py --config configs/config.yaml
 ```
 
-Artifacts:
-- Best model: `checkpoints/best_efficientnet.pt`
-- Epoch logs include loss, accuracy, precision, recall.
+- Creates folders if missing.
+- Validates dataset presence and image counts.
+- Trains in two phases (freeze ViT, then unfreeze last layers).
 
 ## Evaluate
 
 ```bash
-python -m training.eval --dataset-root dataset --checkpoint checkpoints/best_efficientnet.pt
+python eval.py --config configs/config.yaml --checkpoint checkpoints/best_multisignal.pt
 ```
 
-Outputs:
-- Accuracy
-- Precision
-- Recall
-- Confusion matrix
-
-## Run API
-
-```bash
-uvicorn api.main:APP --host 0.0.0.0 --port 8000
-```
-
-## Inference Example
-
-```bash
-curl -X POST "http://localhost:8000/predict" \
-  -H "accept: application/json" \
-  -H "Content-Type: multipart/form-data" \
-  -F "image=@sample.jpg"
-```
-
-Expected response:
-
-```json
-{
-  "label": "AI_GENERATED",
-  "confidence": 0.93
-}
-```
-
-## Extensibility Notes
-
-This MVP is structured for future research upgrades:
-- `features/fft.py` provides a frequency feature extraction hook.
-- `utils/config.py` centralizes tunables for easier experiment control.
-- Model builder (`models/efficientnet.py`) allows model swaps.
-- API threshold behavior can be tuned (`STATE["threshold"]`).
-
-Planned upgrades:
-1. FFT + RGB feature fusion.
-2. CLIP-based scoring module.
-3. Ensemble inference.
-4. Patch-level detection.
-5. Continuous retraining pipeline.
+Runs:
+- seen evaluation (`val`)
+- unseen evaluation (`test` with unseen generators)
+- degraded evaluation (JPEG + blur + noise style distortions)
+- robust stochastic prediction (5 augmentations averaged)
