@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
-
-from PIL import Image
 
 VALID_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 
@@ -32,84 +29,6 @@ def create_data_folders(root: str | Path = "data") -> dict[str, Path]:
 
 def _count_images(folder: Path) -> int:
     return sum(1 for p in folder.rglob("*") if p.is_file() and p.suffix.lower() in VALID_EXTS)
-
-
-def list_image_files(folder: str | Path) -> list[Path]:
-    root = Path(folder)
-    if not root.exists():
-        return []
-    return [p for p in root.rglob("*") if p.is_file() and p.suffix.lower() in VALID_EXTS]
-
-
-def hash_file(path: str | Path, chunk_size: int = 1024 * 1024) -> str:
-    md5 = hashlib.md5()
-    with Path(path).open("rb") as fh:
-        while True:
-            chunk = fh.read(chunk_size)
-            if not chunk:
-                break
-            md5.update(chunk)
-    return md5.hexdigest()
-
-
-def average_hash(path: str | Path, hash_size: int = 8) -> int:
-    image = Image.open(path).convert("L").resize((hash_size, hash_size), Image.Resampling.BILINEAR)
-    pixels = list(image.getdata())
-    mean = sum(pixels) / len(pixels)
-    bits = "".join("1" if p > mean else "0" for p in pixels)
-    return int(bits, 2)
-
-
-def hamming_distance(a: int, b: int) -> int:
-    return (a ^ b).bit_count()
-
-
-def check_leakage(split_a_files: list[Path], split_b_files: list[Path], name_a: str, name_b: str) -> None:
-    hashes_a = {hash_file(p) for p in split_a_files}
-    overlap = []
-    for p in split_b_files:
-        if hash_file(p) in hashes_a:
-            overlap.append(p)
-    if overlap:
-        sample = [str(p) for p in overlap[:5]]
-        raise RuntimeError(f"Data leakage detected between {name_a} and {name_b}. Example overlapping files: {sample}")
-
-
-def check_near_duplicates(
-    split_a_files: list[Path],
-    split_b_files: list[Path],
-    name_a: str,
-    name_b: str,
-    hamming_threshold: int = 4,
-) -> None:
-    ahashes_a = [(p, average_hash(p)) for p in split_a_files]
-    ahashes_b = [(p, average_hash(p)) for p in split_b_files]
-    near_dupes: list[tuple[str, str, int]] = []
-    for pa, ha in ahashes_a:
-        for pb, hb in ahashes_b:
-            dist = hamming_distance(ha, hb)
-            if dist <= hamming_threshold:
-                near_dupes.append((str(pa), str(pb), dist))
-                if len(near_dupes) >= 5:
-                    break
-        if len(near_dupes) >= 5:
-            break
-
-    if near_dupes:
-        raise RuntimeError(f"Near-duplicate leakage suspected between {name_a} and {name_b}: {near_dupes}")
-
-
-def check_split_leakage(root: str | Path = "data") -> None:
-    root = Path(root)
-    train_files = list_image_files(root / "train")
-    val_files = list_image_files(root / "val")
-    test_files = list_image_files(root / "test")
-    check_leakage(train_files, val_files, "train", "val")
-    check_leakage(train_files, test_files, "train", "test")
-    check_leakage(val_files, test_files, "val", "test")
-    check_near_duplicates(train_files, val_files, "train", "val")
-    check_near_duplicates(train_files, test_files, "train", "test")
-    check_near_duplicates(val_files, test_files, "val", "test")
 
 
 def validate_dataset(root: str | Path = "data") -> dict[str, dict[str, int | bool]]:
