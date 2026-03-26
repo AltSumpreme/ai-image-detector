@@ -6,7 +6,7 @@ from pathlib import Path
 import torch
 import yaml
 
-from datasets.data_utils import check_split_leakage, create_data_folders, validate_dataset
+from datasets.data_utils import create_data_folders, validate_dataset
 from engine.evaluator import Evaluator
 from models.main_model import MultiSignalDeepfakeDetector
 
@@ -24,7 +24,6 @@ def main() -> None:
 
     create_data_folders(cfg["data_root"])
     validate_dataset(cfg["data_root"])
-    check_split_leakage(cfg["data_root"])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = MultiSignalDeepfakeDetector().to(device)
@@ -36,14 +35,10 @@ def main() -> None:
     seen = evaluator.evaluate("seen", cfg["data_root"], cfg["batch_size"], cfg["num_workers"])
     unseen = evaluator.evaluate("unseen", cfg["data_root"], cfg["batch_size"], cfg["num_workers"])
     degraded = evaluator.evaluate("degraded", cfg["data_root"], cfg["batch_size"], cfg["num_workers"])
-    ablations = evaluator.evaluate_branch_ablation(cfg["data_root"], cfg["batch_size"], cfg["num_workers"], mode="unseen")
-    robustness_drop = seen["accuracy"] - degraded["accuracy"]
 
     print("Seen:", seen)
     print("Unseen:", unseen)
     print("Degraded:", degraded)
-    print("Branch Ablations (unseen):", ablations)
-    print("Robustness Drop (clean - degraded):", robustness_drop)
 
     test_fake = Path(cfg["data_root"]) / "test" / "fake"
     demo_image = next((p for p in test_fake.rglob("*") if p.is_file()), None)

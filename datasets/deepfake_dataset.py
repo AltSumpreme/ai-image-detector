@@ -10,14 +10,6 @@ from torch.utils.data import Dataset
 from datasets.data_utils import VALID_EXTS
 
 
-def safe_open(path: Path):
-    try:
-        return Image.open(path).convert("RGB")
-    except Exception:
-        print(f"Skipping corrupt image: {path}")
-        return None
-
-
 @dataclass(frozen=True)
 class Sample:
     image_path: Path
@@ -28,12 +20,10 @@ class Sample:
 class DeepfakeDataset(Dataset):
     """Source-aware dataset that recursively scans split folders."""
 
-    def __init__(self, root: str | Path, transform: Callable | None = None, max_samples: int | None = None) -> None:
+    def __init__(self, root: str | Path, transform: Callable | None = None) -> None:
         self.root = Path(root)
         self.transform = transform
         self.samples = self._scan()
-        if max_samples is not None:
-            self.samples = self.samples[:max_samples]
         if not self.samples:
             raise RuntimeError(f"No valid images found in {self.root}")
 
@@ -55,11 +45,7 @@ class DeepfakeDataset(Dataset):
 
     def __getitem__(self, idx: int):
         sample = self.samples[idx]
-        image = safe_open(sample.image_path)
-        if image is None:
-            if len(self.samples) == 1:
-                raise RuntimeError(f"All images are corrupt under {self.root}")
-            return self.__getitem__((idx + 1) % len(self))
+        image = Image.open(sample.image_path).convert("RGB")
         if self.transform:
             image = self.transform(image)
         return image, sample.label, sample.source_type
