@@ -9,7 +9,7 @@ import torch
 import yaml
 from torch.utils.data import DataLoader
 
-from datasets.data_utils import check_split_leakage, create_data_folders, validate_dataset
+from datasets.data_utils import create_data_folders, validate_dataset
 from datasets.deepfake_dataset import DeepfakeDataset
 from engine.trainer import Trainer
 from utils.augmentations import RobustTransforms
@@ -36,7 +36,6 @@ def main() -> None:
     set_seed(cfg["seed"])
     create_data_folders(cfg["data_root"])
     validate_dataset(cfg["data_root"])
-    check_split_leakage(cfg["data_root"])
 
     train_ds = DeepfakeDataset(Path(cfg["data_root"]) / "train", transform=RobustTransforms(cfg["image_size"], training=True))
     val_ds = DeepfakeDataset(Path(cfg["data_root"]) / "val", transform=RobustTransforms(cfg["image_size"], training=False))

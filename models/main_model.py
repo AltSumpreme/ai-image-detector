@@ -19,12 +19,6 @@ class MultiSignalDeepfakeDetector(nn.Module):
         self.dwt_branch = DWTBranch(out_dim=128)
         self.vit_branch = ViTBranch(out_dim=256)
         self.physical_features = PhysicalFeatures()
-        self.norm_srm = nn.LayerNorm(256)
-        self.norm_fft = nn.LayerNorm(128)
-        self.norm_dwt = nn.LayerNorm(128)
-        self.norm_vit = nn.LayerNorm(256)
-        self.norm_phys = nn.LayerNorm(5)
-        self.branch_dropout = nn.Dropout(p=0.1)
         self.fusion = FeatureFusion(in_dim=256 + 128 + 128 + 256 + 5, hidden_dim=256, dropout=0.3)
 
     def freeze_vit(self) -> None:
@@ -39,12 +33,6 @@ class MultiSignalDeepfakeDetector(nn.Module):
         dwt = self.dwt_branch(x)
         vit = self.vit_branch(x)
         phys = self.physical_features(x)
-
-        srm = self.branch_dropout(self.norm_srm(srm))
-        fft = self.branch_dropout(self.norm_fft(fft))
-        dwt = self.branch_dropout(self.norm_dwt(dwt))
-        vit = self.branch_dropout(self.norm_vit(vit))
-        phys = self.branch_dropout(self.norm_phys(phys))
 
         fused = torch.cat([srm, fft, dwt, vit, phys], dim=1)
         logits = self.fusion(fused)

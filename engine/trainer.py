@@ -14,18 +14,7 @@ class Trainer:
         self.cfg = config
         self.device = device
         self.model = MultiSignalDeepfakeDetector().to(device)
-        self.criterion: nn.Module | None = None
-
-    def _build_criterion(self, train_loader: DataLoader) -> nn.Module:
-        if self.cfg.get("use_pos_weight", True):
-            dataset = train_loader.dataset
-            labels = [s.label for s in dataset.samples] if hasattr(dataset, "samples") else []
-            pos = max(1, sum(1 for y in labels if y == 1))
-            neg = max(1, sum(1 for y in labels if y == 0))
-            pos_weight = torch.tensor([neg / pos], dtype=torch.float32, device=self.device)
-            print(f"Using BCEWithLogitsLoss(pos_weight={pos_weight.item():.4f})")
-            return nn.BCEWithLogitsLoss(pos_weight=pos_weight)
-        return nn.BCEWithLogitsLoss()
+        self.criterion = nn.BCEWithLogitsLoss()
 
     def _run_epoch(self, loader: DataLoader, optimizer: torch.optim.Optimizer | None) -> tuple[float, float]:
         is_train = optimizer is not None
@@ -45,13 +34,10 @@ class Trainer:
 
                 out = self.model(images)
                 logits = out["logits"]
-                if self.criterion is None:
-                    raise RuntimeError("Loss criterion is not initialized")
                 loss = self.criterion(logits, labels)
 
                 if is_train:
                     loss.backward()
-                    torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=1.0)
                     optimizer.step()
 
                 total_loss += loss.item() * images.size(0)
@@ -65,11 +51,9 @@ class Trainer:
         ckpt_dir = Path(self.cfg["checkpoint_dir"])
         ckpt_dir.mkdir(parents=True, exist_ok=True)
         best_path = ckpt_dir / "best_multisignal.pt"
-        self.criterion = self._build_criterion(train_loader)
 
         self.model.freeze_vit()
         opt = torch.optim.AdamW([p for p in self.model.parameters() if p.requires_grad], lr=self.cfg["phase1_lr"], weight_decay=self.cfg["weight_decay"])
-        sch = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=max(1, self.cfg["phase1_epochs"]))
 
         best_acc = -1.0
         for epoch in range(1, self.cfg["phase1_epochs"] + 1):
@@ -79,11 +63,9 @@ class Trainer:
             if va_acc > best_acc:
                 best_acc = va_acc
                 torch.save({"model": self.model.state_dict(), "config": self.cfg}, best_path)
-            sch.step()
 
         self.model.unfreeze_vit_last_layers(self.cfg["vit_unfreeze_layers"])
         opt = torch.optim.AdamW([p for p in self.model.parameters() if p.requires_grad], lr=self.cfg["phase2_lr"], weight_decay=self.cfg["weight_decay"])
-        sch = torch.optim.lr_scheduler.CosineAnnealingLR(opt, T_max=max(1, self.cfg["phase2_epochs"]))
 
         for epoch in range(1, self.cfg["phase2_epochs"] + 1):
             tr_loss, tr_acc = self._run_epoch(train_loader, opt)
@@ -92,7 +74,6 @@ class Trainer:
             if va_acc > best_acc:
                 best_acc = va_acc
                 torch.save({"model": self.model.state_dict(), "config": self.cfg}, best_path)
-            sch.step()
 
         print(f"Best checkpoint: {best_path} val_acc={best_acc:.4f}")
         return best_path

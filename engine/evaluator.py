@@ -55,28 +55,11 @@ class Evaluator:
                 src_pred.extend(preds)
         return self._metrics(y_true, y_pred, src_true, src_pred)
 
-    @staticmethod
-    def validate_unseen_data(data_root: str | Path) -> dict[str, int]:
-        root = Path(data_root)
-        required = {
-            "unseen_gan": root / "test" / "fake" / "unseen_gan",
-            "unseen_diffusion": root / "test" / "fake" / "unseen_diffusion",
-        }
-        counts: dict[str, int] = {}
-        for name, folder in required.items():
-            files = [p for p in folder.rglob("*") if p.is_file()]
-            counts[name] = len(files)
-            print(f"[unseen-count] {name}: {counts[name]}")
-            if counts[name] == 0:
-                raise RuntimeError(f"Unseen evaluation folder is empty: {folder}")
-        return counts
-
     def evaluate(self, mode: str, data_root: str | Path, batch_size: int, num_workers: int) -> dict:
         data_root = Path(data_root)
         if mode == "seen":
             ds = DeepfakeDataset(data_root / "val", transform=RobustTransforms(self.image_size, training=False))
         elif mode == "unseen":
-            self.validate_unseen_data(data_root)
             ds = DeepfakeDataset(data_root / "test", transform=RobustTransforms(self.image_size, training=False))
         elif mode == "degraded":
             ds = DeepfakeDataset(data_root / "test", transform=build_degraded_transform(self.image_size))

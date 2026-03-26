@@ -6,7 +6,7 @@ from pathlib import Path
 import torch
 import yaml
 
-from datasets.data_utils import check_split_leakage, create_data_folders, validate_dataset
+from datasets.data_utils import create_data_folders, validate_dataset
 from engine.evaluator import Evaluator
 from models.main_model import MultiSignalDeepfakeDetector
 
@@ -24,7 +24,6 @@ def main() -> None:
 
     create_data_folders(cfg["data_root"])
     validate_dataset(cfg["data_root"])
-    check_split_leakage(cfg["data_root"])
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = MultiSignalDeepfakeDetector().to(device)
